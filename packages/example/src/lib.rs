@@ -6,8 +6,7 @@ use ioc_container_rs::context::{
   container_context::{ContainerContext, ContainerContextProps},
   context::Context,
 };
-use kti_cqrs_provider_rs::provider::CqrsProvider;
-use kti_cqrs_rs::core::bus::ServiceBus;
+use kti_cqrs_provider_rs::{kti_cqrs_rs::core::bus::ServiceBus, provider::cqrs_provider};
 use services::user_service::{
   create_user_command::CreateUserCommand, get_user_by_name_query::GetUserByNameQuery,
   update_user_command::UpdateUserCommand, user_service::User,
@@ -53,16 +52,17 @@ impl UserController {
     Ok(())
   }
 
-  fn get_bus(&self) -> Box<CqrsProvider::Provider<UserServiceContext>> {
-    self.context.resolve_provider(CqrsProvider::TOKEN_PROVIDER)
+  fn get_bus(&self) -> Box<cqrs_provider::Provider<UserServiceContext>> {
+    self.context.resolve_provider(cqrs_provider::TOKEN_PROVIDER)
   }
 }
 
 #[cfg(test)]
 mod tests {
-  use std::sync::{Arc, Mutex};
+  use std::sync::Arc;
 
   use ioc_container_rs::container::Container;
+  use tokio::sync::Mutex;
 
   use crate::services::user_service::user_service::UserService;
 
@@ -80,16 +80,16 @@ mod tests {
   async fn should_get_user_by_name() {
     let container = Container::new();
 
-    let user_service = Arc::new(Mutex::new(UserService::new(get_users())));
+    let user_service = Box::new(UserService::new(get_users()));
     let user_service_context = Arc::new(Mutex::new(UserServiceContext::new(user_service)));
 
-    container.register(CqrsProvider::TOKEN_PROVIDER, move || {
-      Box::new(CqrsProvider::Provider::new(user_service_context.clone()))
+    container.register(cqrs_provider::TOKEN_PROVIDER, move || {
+      Box::new(cqrs_provider::Provider::new(user_service_context.clone()))
     });
 
     let controller = UserController::new(ContainerContextProps {
       container,
-      providers: vec![CqrsProvider::TOKEN_PROVIDER],
+      providers: vec![cqrs_provider::TOKEN_PROVIDER],
     });
 
     let user_name = "Andrey";
@@ -106,16 +106,16 @@ mod tests {
   async fn should_create_new_user() {
     let container = Container::new();
 
-    let user_service = Arc::new(Mutex::new(UserService::new(get_users())));
+    let user_service = Box::new(UserService::new(get_users()));
     let user_service_context = Arc::new(Mutex::new(UserServiceContext::new(user_service)));
 
-    container.register(CqrsProvider::TOKEN_PROVIDER, move || {
-      Box::new(CqrsProvider::Provider::new(user_service_context.clone()))
+    container.register(cqrs_provider::TOKEN_PROVIDER, move || {
+      Box::new(cqrs_provider::Provider::new(user_service_context.clone()))
     });
 
     let controller = UserController::new(ContainerContextProps {
       container,
-      providers: vec![CqrsProvider::TOKEN_PROVIDER],
+      providers: vec![cqrs_provider::TOKEN_PROVIDER],
     });
 
     let user_name = "Rita";
@@ -140,16 +140,16 @@ mod tests {
   async fn should_update_user() {
     let container = Container::new();
 
-    let user_service = Arc::new(Mutex::new(UserService::new(get_users())));
+    let user_service = Box::new(UserService::new(get_users()));
     let user_service_context = Arc::new(Mutex::new(UserServiceContext::new(user_service)));
 
-    container.register(CqrsProvider::TOKEN_PROVIDER, move || {
-      Box::new(CqrsProvider::Provider::new(user_service_context.clone()))
+    container.register(cqrs_provider::TOKEN_PROVIDER, move || {
+      Box::new(cqrs_provider::Provider::new(user_service_context.clone()))
     });
 
     let controller = UserController::new(ContainerContextProps {
       container,
-      providers: vec![CqrsProvider::TOKEN_PROVIDER],
+      providers: vec![cqrs_provider::TOKEN_PROVIDER],
     });
 
     let user_name = "Andrey";

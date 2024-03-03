@@ -44,8 +44,8 @@ impl UserController {
     Ok(())
   }
 
-  fn get_bus(&self) -> Box<CqrsProvider::Provider<UserServiceContext>> {
-    self.context.resolve_provider(CqrsProvider::TOKEN_PROVIDER)
+  fn get_bus(&self) -> Box<cqrs_provider::Provider<UserServiceContext>> {
+    self.context.resolve_provider(cqrs_provider::TOKEN_PROVIDER)
   }
 }
 ```
