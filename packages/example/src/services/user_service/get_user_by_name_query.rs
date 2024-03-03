@@ -1,10 +1,8 @@
-use std::{
-  error::Error,
-  sync::{Arc, Mutex},
-};
+use std::{error::Error, sync::Arc};
 
 use async_trait::async_trait;
-use kti_cqrs_rs::common::handler::QueryHandler;
+use kti_cqrs_provider_rs::kti_cqrs_rs::common::handler::QueryHandler;
+use tokio::sync::Mutex;
 
 use super::{user_service::User, user_service_context::UserServiceContext};
 
@@ -26,9 +24,8 @@ impl QueryHandler for GetUserByNameQuery {
   type Output = Result<Option<User>, Box<dyn Error>>;
 
   async fn execute(&self, context: Arc<Mutex<Self::Context>>) -> Self::Output {
-    let ctx = context.lock().unwrap();
-
-    let service = ctx.get_service().lock().unwrap().clone();
+    let ctx = context.lock().await;
+    let service = ctx.get_service();
 
     match service.get_user_by_name(&self.name) {
       Ok(r) => Ok(r),

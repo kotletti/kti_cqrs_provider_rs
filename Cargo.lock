@@ -78,12 +78,11 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "example"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "async-trait",
  "ioc_container_rs",
  "kti_cqrs_provider_rs",
- "kti_cqrs_rs",
  "tokio",
 ]
 
@@ -107,17 +106,18 @@ checksum = "d121d24b6a1a8e9bacffc07b80293ac3244b48a834197dab5a1cf9889b295388"
 
 [[package]]
 name = "kti_cqrs_provider_rs"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "async-trait",
  "kti_cqrs_rs",
+ "tokio",
 ]
 
 [[package]]
 name = "kti_cqrs_rs"
-version = "0.0.1"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5aca8ccfa079ff8a307ff6d35645df0211245adee0ced556c243d7a778e0d3e"
+checksum = "3f543a37014d05c1dc1b0db05471ef6518f138e02b3f6e9cbe1f5783efcbcdb6"
 dependencies = [
  "async-trait",
  "tokio",
