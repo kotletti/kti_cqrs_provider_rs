@@ -1,53 +1,54 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use ioc_container_rs::context::{container_context::ContainerContext, context::Context};
 use kti_cqrs_rs::{
-  common::{
-    context::Context,
-    handler::{CommandHandler, QueryHandler},
-  },
-  core::bus::{CommandBus, QueryBus, ServiceBus},
+  common::handler::{command_handler::CommandHandler, query_handler::QueryHandler},
+  core::bus::service_bus::ServiceBus,
 };
-use tokio::sync::Mutex;
 
-pub const TOKEN_PROVIDER: &'static str = "CQRS_SERVICE_CONTAINER_PROVIDER";
+use super::{command_bus_provider::CommandBusProvider, query_bus_provider::QueryBusProvider};
 
-#[derive(Clone)]
-pub struct Provider<C: Context> {
-  provider: &'static str,
-  context: Arc<Mutex<C>>,
-  command_bus: CommandBus,
-  query_bus: QueryBus,
+pub struct Provider {
+  context: Arc<ContainerContext>,
 }
 
-impl<C: Context> Provider<C> {
-  pub fn new(context: Arc<Mutex<C>>) -> Self {
-    Provider {
-      provider: TOKEN_PROVIDER,
-      context,
-      command_bus: CommandBus,
-      query_bus: QueryBus,
-    }
+impl Provider {
+  pub fn new(context: Arc<ContainerContext>) -> Self {
+    Self { context }
   }
 
-  pub fn get_token_provider(&self) -> &'static str {
-    self.provider
+  pub fn token() -> &'static str {
+    "CQRS_PROVIDER"
   }
 
-  pub fn get_context(&self) -> Arc<Mutex<C>> {
+  pub fn get_context(&self) -> Arc<ContainerContext> {
     self.context.clone()
   }
 }
 
 #[async_trait]
-impl<C: Context> ServiceBus for Provider<C> {
-  type Context = C;
+impl ServiceBus for Provider {
+  type Context = Arc<ContainerContext>;
 
-  async fn command<O>(&self, command: Box<dyn CommandHandler<Context = C, Output = O>>) -> O {
-    self.command_bus.send(command, self.get_context()).await
+  async fn command<O>(
+    &self,
+    command: Box<dyn CommandHandler<Context = Self::Context, Output = O>>,
+  ) -> O {
+    let bus = self
+      .context
+      .resolve_provider::<CommandBusProvider>(CommandBusProvider::token())
+      .await;
+
+    bus.send(command).await
   }
 
   async fn query<O>(&self, query: Box<dyn QueryHandler<Context = Self::Context, Output = O>>) -> O {
-    self.query_bus.send(query, self.get_context()).await
+    let bus = self
+      .context
+      .resolve_provider::<QueryBusProvider>(QueryBusProvider::token())
+      .await;
+
+    bus.send(query).await
   }
 }

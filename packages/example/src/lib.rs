@@ -1,31 +1,30 @@
 mod services;
 
-use std::error::Error;
+use std::{error::Error, sync::Arc};
 
-use ioc_container_rs::context::{
-  container_context::{ContainerContext, ContainerContextProps},
-  context::Context,
-};
-use kti_cqrs_provider_rs::{kti_cqrs_rs::core::bus::ServiceBus, provider::cqrs_provider};
+use ioc_container_rs::context::{container_context::ContainerContext, context::Context};
+use kti_cqrs_provider_rs::kti_cqrs_rs::core::bus::service_bus::ServiceBus;
+use kti_cqrs_provider_rs::provider::cqrs_provider;
 use services::user_service::{
   create_user_command::CreateUserCommand, get_user_by_name_query::GetUserByNameQuery,
   update_user_command::UpdateUserCommand, user_service::User,
-  user_service_context::UserServiceContext,
 };
 
 pub struct UserController {
-  context: ContainerContext,
+  context: Arc<ContainerContext>,
 }
 
 impl UserController {
-  pub fn new(props: ContainerContextProps) -> Self {
-    Self {
-      context: ContainerContext::new(props),
-    }
+  pub fn new(context: Arc<ContainerContext>) -> Self {
+    Self { context }
+  }
+
+  pub fn token() -> &'static str {
+    "USER_CONTROLLER"
   }
 
   pub async fn get_user_by_name(&self, name: &str) -> Result<Option<User>, Box<dyn Error>> {
-    let bus = self.get_bus();
+    let bus = self.get_cqrs_bus().await;
 
     let query = GetUserByNameQuery::new(name);
 
@@ -33,7 +32,7 @@ impl UserController {
   }
 
   pub async fn create_user(&self, name: &str, email: &str) -> Result<(), Box<dyn Error>> {
-    let bus = self.get_bus();
+    let bus = self.get_cqrs_bus().await;
 
     let command = CreateUserCommand::new(name, email);
 
@@ -43,7 +42,7 @@ impl UserController {
   }
 
   pub async fn update_user(&self, name: &str, email: &str) -> Result<(), Box<dyn Error>> {
-    let bus = self.get_bus();
+    let bus = self.get_cqrs_bus().await;
 
     let command = UpdateUserCommand::new(name, email);
 
@@ -52,8 +51,11 @@ impl UserController {
     Ok(())
   }
 
-  fn get_bus(&self) -> Box<cqrs_provider::Provider<UserServiceContext>> {
-    self.context.resolve_provider(cqrs_provider::TOKEN_PROVIDER)
+  async fn get_cqrs_bus(&self) -> cqrs_provider::Provider {
+    self
+      .context
+      .resolve_provider::<cqrs_provider::Provider>(cqrs_provider::Provider::token())
+      .await
   }
 }
 
@@ -61,7 +63,8 @@ impl UserController {
 mod tests {
   use std::sync::Arc;
 
-  use ioc_container_rs::container::Container;
+  use ioc_container_rs::container::di::{InjectAdapter, DI};
+  use kti_cqrs_provider_rs::di::create_cqrs_provider_di::create_cqrs_provider_di;
   use tokio::sync::Mutex;
 
   use crate::services::user_service::user_service::UserService;
@@ -76,21 +79,39 @@ mod tests {
     ]
   }
 
+  async fn create_di() -> DI {
+    let di = DI::new();
+
+    let di = create_cqrs_provider_di(di).await;
+
+    let store = Arc::new(Mutex::new(get_users()));
+
+    let di = di
+      .inject(InjectAdapter {
+        token: UserService::token(),
+        factory: Arc::new(move |_| UserService::new(store.clone())),
+      })
+      .await;
+
+    let di = di
+      .inject(InjectAdapter {
+        token: UserController::token(),
+        factory: Arc::new(|context| UserController::new(context)),
+      })
+      .await;
+
+    di
+  }
+
   #[tokio::test]
   async fn should_get_user_by_name() {
-    let container = Container::new();
+    let di = create_di().await;
 
-    let user_service = Box::new(UserService::new(get_users()));
-    let user_service_context = Arc::new(Mutex::new(UserServiceContext::new(user_service)));
+    let context = di.get_context();
 
-    container.register(cqrs_provider::TOKEN_PROVIDER, move || {
-      Box::new(cqrs_provider::Provider::new(user_service_context.clone()))
-    });
-
-    let controller = UserController::new(ContainerContextProps {
-      container,
-      providers: vec![cqrs_provider::TOKEN_PROVIDER],
-    });
+    let controller = context
+      .resolve_provider::<UserController>(UserController::token())
+      .await;
 
     let user_name = "Andrey";
 
@@ -104,19 +125,13 @@ mod tests {
 
   #[tokio::test]
   async fn should_create_new_user() {
-    let container = Container::new();
+    let di = create_di().await;
 
-    let user_service = Box::new(UserService::new(get_users()));
-    let user_service_context = Arc::new(Mutex::new(UserServiceContext::new(user_service)));
+    let context = di.get_context();
 
-    container.register(cqrs_provider::TOKEN_PROVIDER, move || {
-      Box::new(cqrs_provider::Provider::new(user_service_context.clone()))
-    });
-
-    let controller = UserController::new(ContainerContextProps {
-      container,
-      providers: vec![cqrs_provider::TOKEN_PROVIDER],
-    });
+    let controller = context
+      .resolve_provider::<UserController>(UserController::token())
+      .await;
 
     let user_name = "Rita";
 
@@ -138,19 +153,13 @@ mod tests {
 
   #[tokio::test]
   async fn should_update_user() {
-    let container = Container::new();
+    let di = create_di().await;
 
-    let user_service = Box::new(UserService::new(get_users()));
-    let user_service_context = Arc::new(Mutex::new(UserServiceContext::new(user_service)));
+    let context = di.get_context();
 
-    container.register(cqrs_provider::TOKEN_PROVIDER, move || {
-      Box::new(cqrs_provider::Provider::new(user_service_context.clone()))
-    });
-
-    let controller = UserController::new(ContainerContextProps {
-      container,
-      providers: vec![cqrs_provider::TOKEN_PROVIDER],
-    });
+    let controller = context
+      .resolve_provider::<UserController>(UserController::token())
+      .await;
 
     let user_name = "Andrey";
 

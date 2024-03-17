@@ -1,7 +1,6 @@
-use std::{
-  error::Error,
-  sync::{Arc, Mutex},
-};
+use std::{error::Error, sync::Arc};
+
+use tokio::sync::Mutex;
 
 #[derive(Clone, Debug)]
 pub struct User {
@@ -32,30 +31,32 @@ pub struct UserService {
 }
 
 impl UserService {
-  pub fn new(users: Vec<User>) -> Self {
-    Self {
-      users: Arc::new(Mutex::new(users)),
-    }
+  pub fn new(users: Arc<Mutex<Vec<User>>>) -> Self {
+    Self { users }
   }
 
-  pub fn get_user_by_name(&self, name: &str) -> Result<Option<User>, Box<dyn Error>> {
-    let users = self.users.lock().unwrap();
+  pub fn token() -> &'static str {
+    "USER_SERVICE"
+  }
+
+  pub async fn get_user_by_name(&self, name: &str) -> Result<Option<User>, Box<dyn Error>> {
+    let users = self.users.lock().await;
 
     let user = users.iter().find(|i| i.name.eq(name)).cloned();
 
     Ok(user)
   }
 
-  pub fn create_user(&self, user: User) -> Result<(), Box<dyn Error>> {
-    let mut users = self.users.lock().unwrap();
+  pub async fn create_user(&self, user: User) -> Result<(), Box<dyn Error>> {
+    let mut users = self.users.lock().await;
 
     users.push(user);
 
     Ok(())
   }
 
-  pub fn update_user_email(&self, name: &str, email: &str) -> Result<(), Box<dyn Error>> {
-    let mut users = self.users.lock().unwrap();
+  pub async fn update_user_email(&self, name: &str, email: &str) -> Result<(), Box<dyn Error>> {
+    let mut users = self.users.lock().await;
 
     let index = match users.iter().position(|i| i.name == name) {
       Some(r) => r,
