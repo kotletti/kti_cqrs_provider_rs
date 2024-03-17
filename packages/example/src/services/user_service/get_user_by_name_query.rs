@@ -1,10 +1,10 @@
 use std::{error::Error, sync::Arc};
 
 use async_trait::async_trait;
-use kti_cqrs_provider_rs::kti_cqrs_rs::common::handler::QueryHandler;
-use tokio::sync::Mutex;
+use ioc_container_rs::context::{container_context::ContainerContext, context::Context};
+use kti_cqrs_provider_rs::kti_cqrs_rs::common::handler::query_handler::QueryHandler;
 
-use super::{user_service::User, user_service_context::UserServiceContext};
+use super::user_service::{User, UserService};
 
 pub struct GetUserByNameQuery {
   name: String,
@@ -20,14 +20,15 @@ impl GetUserByNameQuery {
 
 #[async_trait]
 impl QueryHandler for GetUserByNameQuery {
-  type Context = UserServiceContext;
+  type Context = Arc<ContainerContext>;
   type Output = Result<Option<User>, Box<dyn Error>>;
 
-  async fn execute(&self, context: Arc<Mutex<Self::Context>>) -> Self::Output {
-    let ctx = context.lock().await;
-    let service = ctx.get_service();
+  async fn execute(&self, context: Self::Context) -> Self::Output {
+    let service = context
+      .resolve_provider::<UserService>(UserService::token())
+      .await;
 
-    match service.get_user_by_name(&self.name) {
+    match service.get_user_by_name(&self.name).await {
       Ok(r) => Ok(r),
       Err(e) => return Err(e.into()),
     }

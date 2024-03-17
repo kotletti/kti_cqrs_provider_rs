@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use kti_cqrs_provider_rs::kti_cqrs_rs::common::handler::CommandHandler;
-use tokio::sync::Mutex;
+use ioc_container_rs::context::{container_context::ContainerContext, context::Context};
+use kti_cqrs_provider_rs::kti_cqrs_rs::common::handler::command_handler::CommandHandler;
 
-use super::{user_service::User, user_service_context::UserServiceContext};
+use super::user_service::{User, UserService};
 
 pub struct CreateUserCommand {
   name: String,
@@ -22,15 +22,17 @@ impl CreateUserCommand {
 
 #[async_trait]
 impl CommandHandler for CreateUserCommand {
-  type Context = UserServiceContext;
+  type Context = Arc<ContainerContext>;
   type Output = ();
 
-  async fn execute(&self, context: Arc<Mutex<Self::Context>>) -> Self::Output {
-    let ctx = context.lock().await;
-    let service = ctx.get_service();
+  async fn execute(&self, context: Self::Context) -> Self::Output {
+    let service = context
+      .resolve_provider::<UserService>(UserService::token())
+      .await;
 
     service
       .create_user(User::new(&self.name, &self.email))
+      .await
       .unwrap()
   }
 }

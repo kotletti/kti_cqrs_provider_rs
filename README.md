@@ -4,20 +4,22 @@
 
 Simple example (existed in repo)
 
-```
+```rust
 pub struct UserController {
-  context: ContainerContext,
+  context: Arc<ContainerContext>,
 }
 
 impl UserController {
-  pub fn new(props: ContainerContextProps) -> Self {
-    Self {
-      context: ContainerContext::new(props),
-    }
+  pub fn new(context: Arc<ContainerContext>) -> Self {
+    Self { context }
+  }
+
+  pub fn token() -> &'static str {
+    "USER_CONTROLLER"
   }
 
   pub async fn get_user_by_name(&self, name: &str) -> Result<Option<User>, Box<dyn Error>> {
-    let bus = self.get_bus();
+    let bus = self.get_cqrs_bus().await;
 
     let query = GetUserByNameQuery::new(name);
 
@@ -25,7 +27,7 @@ impl UserController {
   }
 
   pub async fn create_user(&self, name: &str, email: &str) -> Result<(), Box<dyn Error>> {
-    let bus = self.get_bus();
+    let bus = self.get_cqrs_bus().await;
 
     let command = CreateUserCommand::new(name, email);
 
@@ -35,7 +37,7 @@ impl UserController {
   }
 
   pub async fn update_user(&self, name: &str, email: &str) -> Result<(), Box<dyn Error>> {
-    let bus = self.get_bus();
+    let bus = self.get_cqrs_bus().await;
 
     let command = UpdateUserCommand::new(name, email);
 
@@ -44,8 +46,11 @@ impl UserController {
     Ok(())
   }
 
-  fn get_bus(&self) -> Box<cqrs_provider::Provider<UserServiceContext>> {
-    self.context.resolve_provider(cqrs_provider::TOKEN_PROVIDER)
+  async fn get_cqrs_bus(&self) -> cqrs_provider::Provider {
+    self
+      .context
+      .resolve_provider::<cqrs_provider::Provider>(cqrs_provider::Provider::token())
+      .await
   }
 }
 ```
