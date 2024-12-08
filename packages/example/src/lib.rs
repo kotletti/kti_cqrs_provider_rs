@@ -1,73 +1,109 @@
-mod services;
+pub mod commands;
+pub mod events;
+pub mod queries;
+pub mod services;
 
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 
-use ioc_container_rs::context::{container_context::ContainerContext, context::Context};
-use kti_cqrs_provider_rs::kti_cqrs_rs::core::bus::service_bus::ServiceBus;
-use kti_cqrs_provider_rs::provider::cqrs_provider;
-use services::user_service::{
-  create_user_command::CreateUserCommand, get_user_by_name_query::GetUserByNameQuery,
-  update_user_command::UpdateUserCommand, user_service::User,
+use async_trait::async_trait;
+use commands::create_safe_user_command::CreateSafeUserCommand;
+use commands::create_user_command::CreateUserCommand;
+use commands::update_user_command::UpdateUserCommand;
+use events::rename_user_event::RenameUserEvent;
+use ioc_container_rs::ports::{adapter_port::AdapterPort, context_port::ContextPort};
+use kti_cqrs_provider_rs::kti_cqrs_rs::ports::bus::service_bus_port::ServiceBusPort;
+use kti_cqrs_provider_rs::{
+  kti_cqrs_rs::errors::error::Error, provider::cqrs_provider::CqrsProvider,
 };
+use queries::get_user_by_name_query::GetUserByNameQuery;
+use services::user_service::User;
 
 pub struct UserController {
-  context: Arc<ContainerContext>,
+  context: Arc<dyn ContextPort>,
+}
+
+#[async_trait]
+impl AdapterPort<UserController> for UserController {
+  fn token() -> &'static str {
+    "UserController"
+  }
+
+  async fn get_adapter(context: &Arc<dyn ContextPort>) -> Result<Box<Self>, Error> {
+    let me = context
+      .resolve_provider(Self::token())
+      .await?
+      .downcast::<Self>()
+      .map_err(|_| format!("Cant resolve provider: {}", Self::token()))?;
+
+    Ok(me)
+  }
 }
 
 impl UserController {
-  pub fn new(context: Arc<ContainerContext>) -> Self {
+  pub fn new(context: Arc<dyn ContextPort>) -> Self {
     Self { context }
   }
 
-  pub fn token() -> &'static str {
-    "USER_CONTROLLER"
-  }
-
-  pub async fn get_user_by_name(&self, name: &str) -> Result<Option<User>, Box<dyn Error>> {
-    let bus = self.get_cqrs_bus().await;
+  pub async fn get_user_by_name(&self, name: &str) -> Result<Option<User>, Error> {
+    let bus = CqrsProvider::get_adapter(&self.context).await?;
 
     let query = GetUserByNameQuery::new(name);
 
     bus.query(Box::new(query)).await
   }
 
-  pub async fn create_user(&self, name: &str, email: &str) -> Result<(), Box<dyn Error>> {
-    let bus = self.get_cqrs_bus().await;
+  pub async fn create_user(&self, name: &str, email: &str) -> Result<(), Error> {
+    let bus = CqrsProvider::get_adapter(&self.context).await?;
 
     let command = CreateUserCommand::new(name, email);
 
-    bus.command(Box::new(command)).await;
+    bus.command(Box::new(command)).await?;
 
     Ok(())
   }
 
-  pub async fn update_user(&self, name: &str, email: &str) -> Result<(), Box<dyn Error>> {
-    let bus = self.get_cqrs_bus().await;
+  pub async fn create_safe_user(&self, name: &str, email: &str) -> Result<(), Error> {
+    let bus = CqrsProvider::get_adapter(&self.context).await?;
+
+    let command = CreateSafeUserCommand::new(name, email);
+
+    bus.command(Box::new(command)).await?;
+
+    Ok(())
+  }
+
+  pub async fn update_user_email(&self, name: &str, email: &str) -> Result<(), Error> {
+    let bus = CqrsProvider::get_adapter(&self.context).await?;
 
     let command = UpdateUserCommand::new(name, email);
 
-    bus.command(Box::new(command)).await;
+    bus.command(Box::new(command)).await?;
 
     Ok(())
   }
 
-  async fn get_cqrs_bus(&self) -> cqrs_provider::Provider {
-    self
-      .context
-      .resolve_provider::<cqrs_provider::Provider>(cqrs_provider::Provider::token())
-      .await
+  pub async fn update_user_name(&self, current_name: &str, new_name: &str) -> Result<(), Error> {
+    let bus = CqrsProvider::get_adapter(&self.context).await?;
+
+    let event = RenameUserEvent::new(current_name, new_name);
+
+    bus.event(Box::new(event)).await?;
+
+    Ok(())
   }
 }
 
 #[cfg(test)]
 mod tests {
-  use std::sync::Arc;
+  use std::{sync::Arc, time::Duration};
 
-  use ioc_container_rs::container::di::{InjectAdapter, DI};
+  use ioc_container_rs::{
+    container::di::{InjectAdapter, DI},
+    context::container_context::ContainerContext,
+  };
   use kti_cqrs_provider_rs::di::create_cqrs_provider_di::create_cqrs_provider_di;
-  use tokio::sync::Mutex;
-
-  use crate::services::user_service::user_service::UserService;
+  use services::user_service::UserService;
+  use tokio::{sync::RwLock, time::sleep};
 
   use super::*;
 
@@ -79,59 +115,63 @@ mod tests {
     ]
   }
 
-  async fn create_di() -> DI {
-    let di = DI::new();
+  async fn create_di() -> Result<DI, Error> {
+    let di = DI::new(Arc::new(ContainerContext::new()));
 
-    let di = create_cqrs_provider_di(di).await;
+    let di = create_cqrs_provider_di(di).await?;
 
-    let store = Arc::new(Mutex::new(get_users()));
+    let store = Arc::new(RwLock::new(get_users()));
 
     let di = di
       .inject(InjectAdapter {
         token: UserService::token(),
         factory: Arc::new(move |_| UserService::new(store.clone())),
       })
-      .await;
+      .await?;
 
     let di = di
       .inject(InjectAdapter {
         token: UserController::token(),
         factory: Arc::new(|context| UserController::new(context)),
       })
-      .await;
+      .await?;
 
-    di
+    Ok(di)
   }
 
   #[tokio::test]
   async fn should_get_user_by_name() {
-    let di = create_di().await;
+    let di = create_di().await.expect("Cant create DI");
 
     let context = di.get_context();
 
-    let controller = context
-      .resolve_provider::<UserController>(UserController::token())
-      .await;
+    let controller = UserController::get_adapter(&context)
+      .await
+      .expect("Cant resolve USER_CONTROLLER");
 
     let user_name = "Andrey";
 
-    let user = match controller.get_user_by_name(&user_name).await.unwrap() {
-      Some(user) => user,
-      None => panic!("User not found."),
-    };
+    let user = controller
+      .get_user_by_name(&user_name)
+      .await
+      .expect("Cant get user");
+
+    assert!(user.is_some());
+
+    let user = user.unwrap();
 
     assert_eq!(user.get_name(), user_name);
   }
 
   #[tokio::test]
   async fn should_create_new_user() {
-    let di = create_di().await;
+    let di = create_di().await.expect("Cant create DI");
 
     let context = di.get_context();
 
-    let controller = context
-      .resolve_provider::<UserController>(UserController::token())
-      .await;
+    let controller = UserController::get_adapter(&context)
+      .await
+      .expect("Cant resolve USER_CONTROLLER");
 
     let user_name = "Rita";
 
@@ -140,42 +180,131 @@ mod tests {
     controller
       .create_user(&user_name, &user_email)
       .await
-      .unwrap();
+      .expect("Cant create user");
 
-    let user = match controller.get_user_by_name(&user_name).await.unwrap() {
-      Some(user) => user,
-      None => panic!("User not found."),
-    };
+    let user = controller
+      .get_user_by_name(&user_name)
+      .await
+      .expect("Cant get user");
+
+    assert!(user.is_some());
+
+    let user = user.unwrap();
 
     assert_eq!(user.get_name(), user_name);
     assert_eq!(user.get_email(), user_email);
   }
 
   #[tokio::test]
-  async fn should_update_user() {
-    let di = create_di().await;
+  async fn should_be_created_safe_user() {
+    let di = create_di().await.expect("Cant create DI");
 
     let context = di.get_context();
 
-    let controller = context
-      .resolve_provider::<UserController>(UserController::token())
-      .await;
+    let controller = UserController::get_adapter(&context)
+      .await
+      .expect("Cant resolve USER_CONTROLLER");
+
+    let user_name = "Rita";
+    let user_email = "rita@mail.domain";
+
+    controller
+      .create_safe_user(&user_name, &user_email)
+      .await
+      .expect("Cant create user");
+
+    let user = controller
+      .get_user_by_name(&user_name)
+      .await
+      .expect("Cant get user");
+
+    assert!(user.is_some());
+
+    let user = user.unwrap();
+
+    assert_eq!(user.get_name(), user_name);
+    assert_eq!(user.get_email(), user_email);
+  }
+
+  #[tokio::test]
+  async fn should_be_not_created_safe_user() {
+    let di = create_di().await.expect("Cant create DI");
+
+    let context = di.get_context();
+
+    let controller = UserController::get_adapter(&context)
+      .await
+      .expect("Cant resolve USER_CONTROLLER");
+
+    let user_name = "Andrey";
+    let user_email = "andrey@mail.domain";
+
+    let user_creation = controller.create_safe_user(&user_name, &user_email).await;
+
+    assert!(user_creation.is_err());
+  }
+
+  #[tokio::test]
+  async fn should_update_user_email() {
+    let di = create_di().await.expect("Cant create DI");
+
+    let context = di.get_context();
+
+    let controller = UserController::get_adapter(&context)
+      .await
+      .expect("Cant resolve USER_CONTROLLER");
 
     let user_name = "Andrey";
 
     let user_email = "andreyddk@mail.domain";
 
     controller
-      .update_user(&user_name, &user_email)
+      .update_user_email(&user_name, &user_email)
       .await
-      .unwrap();
+      .expect("Cant update user");
 
-    let user = match controller.get_user_by_name(&user_name).await.unwrap() {
-      Some(user) => user,
-      None => panic!("User not found."),
-    };
+    let user = controller
+      .get_user_by_name(&user_name)
+      .await
+      .expect("Cant get user");
+
+    assert!(user.is_some());
+
+    let user = user.unwrap();
 
     assert_eq!(user.get_name(), user_name);
     assert_eq!(user.get_email(), user_email);
+  }
+
+  #[tokio::test]
+  async fn should_update_user_name_by_event() {
+    let di = create_di().await.expect("Cant create DI");
+
+    let context = di.get_context();
+
+    let controller = UserController::get_adapter(&context)
+      .await
+      .expect("Cant resolve USER_CONTROLLER");
+
+    let current_user_name = "Daria";
+    let new_user_name = "Rita";
+
+    controller
+      .update_user_name(&current_user_name, &new_user_name)
+      .await
+      .expect("Cant update user");
+
+    sleep(Duration::from_secs(1)).await;
+
+    let user = controller
+      .get_user_by_name(&new_user_name)
+      .await
+      .expect("Cant get user");
+
+    assert!(user.is_some());
+
+    let user = user.unwrap();
+
+    assert_eq!(user.get_name(), new_user_name);
   }
 }
