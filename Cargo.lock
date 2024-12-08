@@ -97,7 +97,8 @@ dependencies = [
 [[package]]
 name = "kti_cqrs_rs"
 version = "0.3.0"
-source = "git+https://github.com/kotletti/kti_cqrs_rs?branch=rc-0.3.0#31ffbc0e40fabe375d6b357bc724a5a795b20d61"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dde36947d2e249ee2ad10a0eb40104b5f4e83ce682e9d73a3301b4148587aaa9"
 dependencies = [
  "async-trait",
  "tokio",

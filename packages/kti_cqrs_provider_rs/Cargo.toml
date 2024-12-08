@@ -12,7 +12,6 @@ readme = "../../README.md"
 
 [dependencies]
 ioc_container_rs = { version = "0.2.0" }
-kti_cqrs_rs = { git = "https://github.com/kotletti/kti_cqrs_rs", branch = "rc-0.3.0" }
-# kti_cqrs_rs = { version = "0.2.0" }
+kti_cqrs_rs = { version = "0.3.0" }
 tokio = { version = "1.42.0", features = ["sync"] }
 async-trait = "0.1.83"
