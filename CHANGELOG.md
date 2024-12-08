@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 0.3.0 BREAKING CHANGES
+* Update `kti-cqrs-rs` to v0.3.0
+* Add events
+* Add error handling
+* Implement `ServiceBusAdapter`
+* Simplify tests & examples
+
 ## Version 0.2.0 BREAKING CHANGES
 * Update `kti-cqrs-rs` to v0.2.0
 * Modify tests

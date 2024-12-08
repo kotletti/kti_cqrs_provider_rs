@@ -1,30 +1,50 @@
 use std::sync::Arc;
 
-use ioc_container_rs::context::container_context::ContainerContext;
-use kti_cqrs_rs::{common::handler::query_handler::QueryHandler, core::bus::query_bus::QueryBus};
+use async_trait::async_trait;
+use ioc_container_rs::ports::{adapter_port::AdapterPort, context_port::ContextPort};
+use kti_cqrs_rs::{
+  errors::error::Error,
+  ports::{bus::query_bus_port::QueryBusPort, handler::query_handler_port::QueryHandlerPort},
+};
 
 pub struct QueryBusProvider {
-  context: Arc<ContainerContext>,
-  bus: Arc<QueryBus>,
+  context: Arc<dyn ContextPort>,
 }
 
-impl QueryBusProvider {
-  pub fn new(context: Arc<ContainerContext>, bus: Arc<QueryBus>) -> Self {
-    Self { context, bus }
-  }
-
-  pub fn token() -> &'static str {
+#[async_trait]
+impl AdapterPort<QueryBusProvider> for QueryBusProvider {
+  fn token() -> &'static str {
     "QUERY_BUS_PROVIDER"
   }
 
-  pub fn get_context(&self) -> Arc<ContainerContext> {
-    self.context.clone()
+  async fn get_adapter(context: &Arc<dyn ContextPort>) -> Result<Box<Self>, Error> {
+    let me = context
+      .resolve_provider(Self::token())
+      .await?
+      .downcast::<Self>()
+      .map_err(|_| format!("Cant resolve provider: {}", Self::token()))?;
+
+    Ok(me)
+  }
+}
+
+#[async_trait]
+impl QueryBusPort for QueryBusProvider {
+  async fn send<C: Send, O>(
+    &self,
+    query: Box<dyn QueryHandlerPort<Context = C, Output = O>>,
+    context: C,
+  ) -> Result<O, Error> {
+    query.execute(context).await
+  }
+}
+
+impl QueryBusProvider {
+  pub fn new(context: Arc<dyn ContextPort>) -> Self {
+    Self { context }
   }
 
-  pub async fn send<O>(
-    &self,
-    query: Box<dyn QueryHandler<Context = Arc<ContainerContext>, Output = O>>,
-  ) -> O {
-    self.bus.send(query, self.get_context()).await
+  pub fn get_context(&self) -> Arc<dyn ContextPort> {
+    self.context.clone()
   }
 }

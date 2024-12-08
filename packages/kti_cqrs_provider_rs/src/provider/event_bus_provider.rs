@@ -1,22 +1,20 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ioc_container_rs::{
+use ioc_container_rs::ports::{adapter_port::AdapterPort, context_port::ContextPort};
+use kti_cqrs_rs::{
   errors::error::Error,
-  ports::{adapter_port::AdapterPort, context_port::ContextPort},
-};
-use kti_cqrs_rs::ports::{
-  bus::command_bus_port::CommandBusPort, handler::command_handler_port::CommandHandlerPort,
+  ports::{bus::event_bus_port::EventBusPort, handler::event_handler_port::EventHandlerPort},
 };
 
-pub struct CommandBusProvider {
+pub struct EventBusProvider {
   context: Arc<dyn ContextPort>,
 }
 
 #[async_trait]
-impl AdapterPort<CommandBusProvider> for CommandBusProvider {
+impl AdapterPort<EventBusProvider> for EventBusProvider {
   fn token() -> &'static str {
-    "COMMAND_BUS_PROVIDER"
+    "EVENT_BUS_PROVIDER"
   }
 
   async fn get_adapter(context: &Arc<dyn ContextPort>) -> Result<Box<Self>, Error> {
@@ -31,17 +29,15 @@ impl AdapterPort<CommandBusProvider> for CommandBusProvider {
 }
 
 #[async_trait]
-impl CommandBusPort for CommandBusProvider {
-  async fn send<C: Send, O>(
-    &self,
-    command: Box<dyn CommandHandlerPort<Context = C, Output = O>>,
-    context: C,
-  ) -> Result<O, Error> {
-    command.execute(context).await
+impl EventBusPort for EventBusProvider {
+  fn send<C: Send + 'static>(&self, event: Box<dyn EventHandlerPort<Context = C>>, context: C) {
+    tokio::spawn(async move {
+      std::mem::drop(event.execute(context).await);
+    });
   }
 }
 
-impl CommandBusProvider {
+impl EventBusProvider {
   pub fn new(context: Arc<dyn ContextPort>) -> Self {
     Self { context }
   }
