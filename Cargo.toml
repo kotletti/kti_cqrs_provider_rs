@@ -1,3 +1,12 @@
 [workspace]
+package.version = "0.3.1"
+package.edition = "2024"
+package.license = "MIT OR Apache-2.0"
 resolver = "2"
 members = ["packages/kti_cqrs_provider_rs", "packages/example"]
+
+[workspace.dependencies]
+ioc_container_rs = { version = "0.2.1" }
+kti_cqrs_rs = { version = "0.3.0" }
+tokio = { version = "1.47.1", features = ["rt-multi-thread", "sync", "time"] }
+async-trait = "0.1.88"
