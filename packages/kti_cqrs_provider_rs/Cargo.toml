@@ -1,8 +1,8 @@
 [package]
 name = "kti_cqrs_provider_rs"
-version = "0.3.0"
-edition = "2021"
-license = "MIT OR Apache-2.0"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 description = "CQRS provider with ioc container"
 homepage = "https://github.com/kotletti/kti_cqrs_provider_rs"
 repository = "https://github.com/kotletti/kti_cqrs_provider_rs"
@@ -11,7 +11,7 @@ readme = "../../README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ioc_container_rs = { version = "0.2.0" }
-kti_cqrs_rs = { version = "0.3.0" }
-tokio = { version = "1.42.0", features = ["sync"] }
-async-trait = "0.1.83"
+ioc_container_rs = { workspace = true }
+kti_cqrs_rs = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }

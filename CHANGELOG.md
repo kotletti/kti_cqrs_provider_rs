@@ -1,5 +1,11 @@
 # Changelog
 
+## Version 0.3.1
+* Update `ioc_container_rs` to v0.2.1
+* Update `tokio` & `async-trait` deps
+* Change tab size `2` -> `4`
+* Remove impl `async fn get_adapter(...)` moved to `AdapterPort<T>`
+
 ## Version 0.3.0 BREAKING CHANGES
 * Update `kti-cqrs-rs` to v0.3.0
 * Add events

@@ -14,16 +14,6 @@ impl AdapterPort<UserController> for UserController {
   fn token() -> &'static str {
     "UserController"
   }
-
-  async fn get_adapter(context: &Arc<dyn ContextPort>) -> Result<Box<Self>, Error> {
-    let me = context
-      .resolve_provider(Self::token())
-      .await?
-      .downcast::<Self>()
-      .map_err(|_| format!("Cant resolve provider: {}", Self::token()))?;
-
-    Ok(me)
-  }
 }
 
 impl UserController {
