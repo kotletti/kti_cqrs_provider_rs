@@ -21,6 +21,7 @@ use super::{
     query_bus_provider::QueryBusProvider,
 };
 
+#[derive(Clone)]
 pub struct CqrsProvider {
     context: Arc<dyn ContextPort>,
 }
