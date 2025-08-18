@@ -1,5 +1,5 @@
 [workspace]
-package.version = "0.3.1"
+package.version = "0.3.2"
 package.edition = "2024"
 package.license = "MIT OR Apache-2.0"
 resolver = "2"

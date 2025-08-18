@@ -1,5 +1,8 @@
 # Changelog
 
+## Version 0.3.2
+* Add derive clone to `CqrsProvider` struct
+
 ## Version 0.3.1
 * Update `ioc_container_rs` to v0.2.1
 * Update `tokio` & `async-trait` deps
